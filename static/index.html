@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Production Layer-wise Relevance Propagation (LRP) Explainability Dashboard for Deep Neural Networks.">
+  <title>LRP Explainability Studio | Deep Neural Network Attribution</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-primary: #0a0d14;
+      --bg-secondary: #111625;
+      --bg-card: rgba(18, 24, 41, 0.75);
+      --bg-card-hover: rgba(26, 35, 60, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: #4f46e5;
+      
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-primary: #6366f1;
+      --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+      
+      --color-positive: #ef4444; /* Positive relevance supporting class */
+      --color-negative: #3b82f6; /* Negative relevance suppressing class */
+      --color-success: #10b981;
+      --color-warning: #f59e0b;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      
+      --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+      --shadow-glow: 0 0 35px -5px rgba(99, 102, 241, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(236, 72, 153, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      padding: 1.25rem 2.5rem;
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(12px);
+      background: rgba(10, 13, 20, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      font-weight: 800;
+      font-size: 1.15rem;
+      color: white;
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn-api {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.45rem 1rem;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-api:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem 2.5rem;
+    }
+
+    /* Tab Switcher */
+    .tab-nav {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 0.6rem 1.25rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      transition: all 0.25s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: white;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+    }
+
+    /* Tab Content Panels */
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Layout Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 1.75rem;
+    }
+
+    @media (max-width: 1080px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Glass Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-card);
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Form Controls */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 0.45rem;
+    }
+
+    select, input[type="range"] {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border 0.2s ease;
+    }
+
+    select:focus {
+      border-color: var(--border-focus);
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .slider-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent-primary);
+      min-width: 45px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--accent-gradient);
+      border: none;
+      color: white;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    }
+
+    /* Metrics Ribbon */
+    .metrics-ribbon {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .metric-card {
+      background: rgba(18, 24, 41, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+    }
+
+    .metric-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.35rem;
+    }
+
+    .metric-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .metric-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-malignant {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-benign {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* Horizontal Bar Chart Container */
+    .chart-container {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 85px;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.85rem;
+    }
+
+    .bar-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .bar-track {
+      background: rgba(255, 255, 255, 0.04);
+      height: 22px;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .bar-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      text-align: right;
+      font-weight: 600;
+    }
+
+    /* Visual Heatmap Elements */
+    .heatmaps-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .heatmap-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .heatmap-box h4 {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .digit-canvas {
+      image-rendering: pixelated;
+      width: 170px;
+      height: 170px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      background: #000;
+    }
+
+    .legend-bar {
+      height: 12px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #3b82f6 0%, #ffffff 50%, #ef4444 100%);
+      margin: 1rem auto 0.4rem;
+      max-width: 220px;
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      max-width: 220px;
+      margin: 0 auto;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 1.25rem 2.5rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">X</div>
+      <div>
+        <h1 class="brand-title">LRP Explainability Studio</h1>
+        <div class="brand-subtitle">Layer-wise Relevance Propagation & Deep Taylor Decomposition</div>
+      </div>
+    </div>
+    <div class="header-links">
+      <div class="status-badge" id="apiStatus">
+        <span class="status-dot"></span> API Operational
+      </div>
+      <a href="/docs" target="_blank" class="btn-api">
+        <span>Swagger API Docs</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Tab Switcher -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" id="tabBtnTabular" onclick="switchTab('tabular')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        Tabular Biomarker Attribution (MLP)
+      </button>
+      <button class="tab-btn" id="tabBtnImage" onclick="switchTab('image')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Visual Pixel Heatmaps (ConvNet)
+      </button>
+    </nav>
+
+    <!-- ============================================================== -->
+    <!-- TAB 1: TABULAR EXPLORER                                        -->
+    <!-- ============================================================== -->
+    <div class="tab-panel active" id="panelTabular">
+      <div class="dashboard-grid">
+        <!-- Control Sidebar -->
+        <div class="card">
+          <div class="card-title">Analysis Controls</div>
+
+          <div class="form-group">
+            <label class="form-label" for="sampleSelect">Select Patient Case</label>
+            <select id="sampleSelect" onchange="loadTabularSample()">
+              <option value="0">Sample #0 (Malignant Tumor)</option>
+              <option value="1">Sample #1 (Malignant Tumor)</option>
+              <option value="2">Sample #2 (Malignant Tumor)</option>
+              <option value="3">Sample #3 (Benign Tumor)</option>
+              <option value="4">Sample #4 (Benign Tumor)</option>
+              <option value="5">Sample #5 (Benign Tumor)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="ruleSelect">LRP Propagation Rule</label>
+            <select id="ruleSelect" onchange="runTabularExplain()">
+              <option value="lrp-0">LRP-0 (Exact Conservation)</option>
+              <option value="lrp-epsilon">LRP-&epsilon; (Noise Filter)</option>
+              <option value="lrp-gamma">LRP-&gamma; (Positive Evidence Focus)</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="groupEps" style="display: none;">
+            <label class="form-label">&epsilon; Absorber Parameter</label>
+            <div class="slider-container">
+              <input type="range" id="paramEps" min="0.0001" max="0.5" step="0.01" value="0.01" oninput="updateSliderVal('valEps', this.value); runTabularExplain();">
+              <span class="slider-val" id="valEps">0.01</span>
+            </div>
+          </div>
+
+          <div class="form-group" id="groupGamma" style="display: none;">
+            <label class="form-label">&gamma; Multiplier Parameter</label>
+            <div class="slider-container">
+              <input type="range" id="paramGamma" min="0.05" max="1.0" step="0.05" value="0.25" oninput="updateSliderVal('valGamma', this.value); runTabularExplain();">
+              <span class="slider-val" id="valGamma">0.25</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="topKSelect">Features to Display</label>
+            <select id="topKSelect" onchange="renderTabularBars()">
+              <option value="12">Top 12 Influential Features</option>
+              <option value="20">Top 20 Influential Features</option>
+              <option value="30">All 30 Features</option>
+            </select>
+          </div>
+
+          <button class="btn-primary" id="btnRunTabular" onclick="runTabularExplain()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Recompute Attribution
+          </button>
+        </div>
+
+        <!-- Results Display -->
+        <div class="card">
+          <div class="card-title">
+            <span>Model Prediction & Conservation Analysis</span>
+            <span id="tabBadge"></span>
+          </div>
+
+          <!-- Metrics -->
+          <div class="metrics-ribbon">
+            <div class="metric-card">
+              <div class="metric-title">Predicted Diagnosis</div>
+              <div class="metric-val" id="metricDiagnosis">-</div>
+              <div class="metric-sub" id="metricProb">-</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Target Logit $f(x)_c$</div>
+              <div class="metric-val" id="metricLogit" style="font-family: 'JetBrains Mono';">-</div>
+              <div class="metric-sub">Output layer score</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Sum of Relevance $\sum R_i$</div>
+              <div class="metric-val" id="metricSumRel" style="font-family: 'JetBrains Mono';">-</div>
+              <div class="metric-sub">Input layer total</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Conservation Error</div>
+              <div class="metric-val" id="metricError" style="font-family: 'JetBrains Mono'; color: #10b981;">-</div>
+              <div class="metric-sub">|f(x) - &sum;R|</div>
+            </div>
+          </div>
+
+          <!-- Explanations Bar Chart -->
+          <h3 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between;">
+            <span>Feature Relevance Breakdown</span>
+            <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: normal;">
+              <span style="color: var(--color-positive);">&#9632;</span> Supports Prediction &nbsp;|&nbsp; 
+              <span style="color: var(--color-negative);">&#9632;</span> Opposes Prediction
+            </span>
+          </h3>
+          
+          <div class="chart-container" id="tabularBarsContainer">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- TAB 2: IMAGE EXPLORER                                          -->
+    <!-- ============================================================== -->
+    <div class="tab-panel" id="panelImage">
+      <div class="dashboard-grid">
+        <!-- Control Sidebar -->
+        <div class="card">
+          <div class="card-title">Visual Controls</div>
+
+          <div class="form-group">
+            <label class="form-label" for="digitSelect">Handwritten Digit Sample</label>
+            <select id="digitSelect" onchange="runImageExplain()">
+              <option value="0">Digit 0</option>
+              <option value="1">Digit 1</option>
+              <option value="2">Digit 2</option>
+              <option value="3" selected>Digit 3</option>
+              <option value="4">Digit 4</option>
+              <option value="5">Digit 5</option>
+              <option value="6">Digit 6</option>
+              <option value="7">Digit 7</option>
+              <option value="8">Digit 8</option>
+              <option value="9">Digit 9</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="imgRuleSelect">LRP Rule</label>
+            <select id="imgRuleSelect" onchange="runImageExplain()">
+              <option value="lrp-epsilon" selected>LRP-&epsilon; (Noise Filter)</option>
+              <option value="lrp-0">LRP-0 (Exact Conservation)</option>
+              <option value="lrp-gamma">LRP-&gamma; (Positive Evidence)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="compSelect">Contrastive Competitor Class</label>
+            <select id="compSelect" onchange="runImageExplain()">
+              <option value="8" selected>Compare against '8'</option>
+              <option value="5">Compare against '5'</option>
+              <option value="7">Compare against '7'</option>
+              <option value="2">Compare against '2'</option>
+              <option value="0">Compare against '0'</option>
+            </select>
+          </div>
+
+          <button class="btn-primary" id="btnRunImage" onclick="runImageExplain()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Recompute Heatmap
+          </button>
+        </div>
+
+        <!-- Heatmap Gallery Display -->
+        <div class="card">
+          <div class="card-title">
+            <span>Spatial Pixel Relevance Heatmaps</span>
+            <span id="imgClassBadge"></span>
+          </div>
+
+          <!-- Metrics -->
+          <div class="metrics-ribbon">
+            <div class="metric-card">
+              <div class="metric-title">CNN Classification</div>
+              <div class="metric-val" id="imgMetricPred">-</div>
+              <div class="metric-sub" id="imgMetricConf">-</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Predicted Logit</div>
+              <div class="metric-val" id="imgMetricLogit" style="font-family: 'JetBrains Mono';">-</div>
+              <div class="metric-sub">Target class score</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Sum Input Relevance</div>
+              <div class="metric-val" id="imgMetricSum" style="font-family: 'JetBrains Mono';">-</div>
+              <div class="metric-sub">Layer 0 Total</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Conservation Error</div>
+              <div class="metric-val" id="imgMetricError" style="font-family: 'JetBrains Mono'; color: #10b981;">-</div>
+              <div class="metric-sub">Machine precision</div>
+            </div>
+          </div>
+
+          <div class="heatmaps-row">
+            <div class="heatmap-box">
+              <h4>Input Grayscale (8&times;8)</h4>
+              <canvas id="canvasInput" class="digit-canvas" width="8" height="8"></canvas>
+            </div>
+            <div class="heatmap-box">
+              <h4 id="labelHeatmapPredicted">Relevance (Predicted)</h4>
+              <canvas id="canvasHeatmap" class="digit-canvas" width="8" height="8"></canvas>
+              <div class="legend-bar"></div>
+              <div class="legend-labels">
+                <span>Opposes (-)</span>
+                <span>Neutral</span>
+                <span>Supports (+)</span>
+              </div>
+            </div>
+            <div class="heatmap-box">
+              <h4 id="labelHeatmapCompetitor">Contrastive (Competitor)</h4>
+              <canvas id="canvasContrastive" class="digit-canvas" width="8" height="8"></canvas>
+              <div class="legend-bar"></div>
+              <div class="legend-labels">
+                <span>Opposes (-)</span>
+                <span>Neutral</span>
+                <span>Supports (+)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Layer-wise Relevance Propagation (LRP) Analysis &bull; Explainable AI (XAI) SEM 7 &bull; Deep Taylor Decomposition
+  </footer>
+
+  <!-- JavaScript Logic -->
+  <script>
+    let cachedTabularSamples = [];
+    let cachedImageSamples = [];
+    let currentTabularExplanation = null;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      
+      if (tabId === 'tabular') {
+        document.getElementById('tabBtnTabular').classList.add('active');
+        document.getElementById('panelTabular').classList.add('active');
+      } else {
+        document.getElementById('tabBtnImage').classList.add('active');
+        document.getElementById('panelImage').classList.add('active');
+        runImageExplain();
+      }
+    }
+
+    function updateSliderVal(spanId, val) {
+      document.getElementById(spanId).textContent = val;
+    }
+
+    // Initialize data from REST API
+    async function initApp() {
+      try {
+        const resHealth = await fetch('/api/health');
+        const health = await resHealth.json();
+        if (health.status === 'healthy') {
+          document.getElementById('apiStatus').innerHTML = '<span class="status-dot"></span> API Operational';
+        }
+
+        const resTab = await fetch('/api/tabular/samples');
+        cachedTabularSamples = await resTab.json();
+
+        const resImg = await fetch('/api/image/samples');
+        cachedImageSamples = await resImg.json();
+
+        // Run initial explains
+        runTabularExplain();
+      } catch (err) {
+        console.error('Initialization error:', err);
+        document.getElementById('apiStatus').innerHTML = '<span class="status-dot" style="background:#ef4444;box-shadow:0 0 10px #ef4444;"></span> API Offline';
+      }
+    }
+
+    // Toggle rule parameter sliders
+    document.getElementById('ruleSelect').addEventListener('change', function() {
+      const val = this.value;
+      document.getElementById('groupEps').style.display = (val === 'lrp-epsilon') ? 'block' : 'none';
+      document.getElementById('groupGamma').style.display = (val === 'lrp-gamma') ? 'block' : 'none';
+    });
+
+    async function runTabularExplain() {
+      const sampleIdx = parseInt(document.getElementById('sampleSelect').value);
+      if (!cachedTabularSamples[sampleIdx]) return;
+
+      const sample = cachedTabularSamples[sampleIdx];
+      const rule = document.getElementById('ruleSelect').value;
+      const eps = parseFloat(document.getElementById('paramEps').value);
+      const gamma = parseFloat(document.getElementById('paramGamma').value);
+
+      const payload = {
+        features: sample.raw_features,
+        is_scaled: false,
+        rule: rule,
+        epsilon: eps,
+        gamma: gamma
+      };
+
+      try {
+        const res = await fetch('/api/tabular/explain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        currentTabularExplanation = await res.json();
+        renderTabularResults(currentTabularExplanation);
+      } catch (err) {
+        console.error('Tabular explain error:', err);
+      }
+    }
+
+    function renderTabularResults(data) {
+      const isMal = data.predicted_class === 0;
+      const badge = document.getElementById('tabBadge');
+      badge.className = `badge ${isMal ? 'badge-malignant' : 'badge-benign'}`;
+      badge.textContent = `Predicted: ${data.predicted_label}`;
+
+      document.getElementById('metricDiagnosis').textContent = data.predicted_label.toUpperCase();
+      const prob = data.probabilities[data.predicted_label] * 100;
+      document.getElementById('metricProb').textContent = `Confidence: ${prob.toFixed(1)}%`;
+      document.getElementById('metricLogit').textContent = data.target_logit.toFixed(3);
+      document.getElementById('metricSumRel').textContent = data.sum_input_relevance.toFixed(3);
+      
+      const err = data.conservation_error;
+      document.getElementById('metricError').textContent = err < 1e-4 ? err.toExponential(2) : err.toFixed(4);
+
+      renderTabularBars();
+    }
+
+    function renderTabularBars() {
+      if (!currentTabularExplanation) return;
+      const container = document.getElementById('tabularBarsContainer');
+      container.innerHTML = '';
+
+      const topK = parseInt(document.getElementById('topKSelect').value);
+      const attributions = currentTabularExplanation.feature_attributions.slice(0, topK);
+
+      const maxAbs = Math.max(...attributions.map(a => Math.abs(a.relevance)), 0.001);
+
+      attributions.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+
+        const pct = (Math.abs(item.relevance) / maxAbs) * 100;
+        const color = item.is_positive ? 'var(--color-positive)' : 'var(--color-negative)';
+
+        row.innerHTML = `
+          <div class="bar-label" title="${item.feature}">${item.feature}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${pct}%; background: ${color};"></div>
+          </div>
+          <div class="bar-val" style="color: ${color};">${item.relevance > 0 ? '+' : ''}${item.relevance.toFixed(3)}</div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // Visual image LRP logic
+    async function runImageExplain() {
+      const digit = parseInt(document.getElementById('digitSelect').value);
+      const compDigit = parseInt(document.getElementById('compSelect').value);
+      const rule = document.getElementById('imgRuleSelect').value;
+
+      const payload = {
+        sample_id: digit,
+        rule: rule,
+        competitor_class: compDigit
+      };
+
+      try {
+        const res = await fetch('/api/image/explain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        renderImageResults(data, digit, compDigit);
+      } catch (err) {
+        console.error('Image explain error:', err);
+      }
+    }
+
+    function renderImageResults(data, digit, compDigit) {
+      document.getElementById('imgMetricPred').textContent = `Digit ${data.predicted_class}`;
+      const conf = (data.probabilities[data.predicted_class] * 100).toFixed(1);
+      document.getElementById('imgMetricConf').textContent = `Confidence: ${conf}%`;
+      document.getElementById('imgMetricLogit').textContent = data.target_logit.toFixed(2);
+      document.getElementById('imgMetricSum').textContent = data.sum_input_relevance.toFixed(2);
+      
+      const err = data.conservation_error;
+      document.getElementById('imgMetricError').textContent = err < 1e-4 ? err.toExponential(2) : err.toFixed(4);
+
+      document.getElementById('labelHeatmapPredicted').textContent = `Relevance for Class '${data.predicted_class}'`;
+      document.getElementById('labelHeatmapCompetitor').textContent = `Relevance for Class '${compDigit}'`;
+
+      // 1. Draw Input Canvas
+      const sample = cachedImageSamples.find(s => s.digit === digit);
+      if (sample) {
+        drawMatrixOnCanvas('canvasInput', sample.pixels_8x8, false);
+      }
+
+      // 2. Draw Heatmap Canvas
+      drawMatrixOnCanvas('canvasHeatmap', data.heatmap_8x8, true);
+
+      // 3. Draw Contrastive Canvas
+      if (data.contrastive) {
+        drawMatrixOnCanvas('canvasContrastive', data.contrastive.competitor_heatmap_8x8, true);
+      }
+    }
+
+    function drawMatrixOnCanvas(canvasId, matrix, isDivergent) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.createImageData(8, 8);
+
+      let maxAbs = 0.001;
+      if (isDivergent) {
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            maxAbs = Math.max(maxAbs, Math.abs(matrix[r][c]));
+          }
+        }
+      }
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const idx = (r * 8 + c) * 4;
+          const val = matrix[r][c];
+
+          if (!isDivergent) {
+            // Grayscale input
+            const intensity = Math.round(val * 255);
+            imgData.data[idx] = intensity;
+            imgData.data[idx + 1] = intensity;
+            imgData.data[idx + 2] = intensity;
+            imgData.data[idx + 3] = 255;
+          } else {
+            // Divergent colormap: Red = Positive, Blue = Negative
+            const norm = val / maxAbs; // in range [-1, 1]
+            if (norm >= 0) {
+              imgData.data[idx] = 239;     // R
+              imgData.data[idx + 1] = Math.round(68 * (1 - norm));  // G
+              imgData.data[idx + 2] = Math.round(68 * (1 - norm));  // B
+            } else {
+              const absNorm = Math.abs(norm);
+              imgData.data[idx] = Math.round(59 * (1 - absNorm));  // R
+              imgData.data[idx + 1] = Math.round(130 * (1 - absNorm)); // G
+              imgData.data[idx + 2] = 246;   // B
+            }
+            imgData.data[idx + 3] = Math.round(Math.min(1.0, Math.abs(norm) * 1.5 + 0.1) * 255);
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>

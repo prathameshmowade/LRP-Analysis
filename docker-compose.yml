@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  # FastAPI REST API & Interactive Web Dashboard
+  lrp-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lrp-api-service
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional Streamlit Service
+  lrp-streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lrp-streamlit-service
+    command: ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
