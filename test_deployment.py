@@ -10,7 +10,7 @@ import sys
 import unittest
 from fastapi.testclient import TestClient
 
-from app import app, STATE
+from app import app, ENGINE
 
 
 class TestLRPDeployment(unittest.TestCase):

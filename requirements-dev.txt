@@ -1,0 +1,11 @@
+# Full development dependencies for model training, notebooks, and Streamlit
+-r requirements.txt
+torch>=2.0.0
+torchvision>=0.15.0
+scikit-learn>=1.2.0
+matplotlib>=3.7.0
+pandas>=2.0.0
+streamlit>=1.25.0
+requests>=2.28.0
+pytest>=7.3.0
+httpx>=0.24.0
